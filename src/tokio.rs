@@ -5,12 +5,13 @@ use std::{
     task::Context,
 };
 
-use crossbeam::channel;
+use std::sync::mpsc::{self, Receiver, SyncSender};
+
 use futures::task::{self, ArcWake};
 
 pub struct MiniTokio {
-    todo: channel::Receiver<Arc<Task>>,
-    sender: channel::Sender<Arc<Task>>,
+    todo: Receiver<Arc<Task>>,
+    sender: SyncSender<Arc<Task>>,
 }
 
 struct Task {
@@ -21,7 +22,7 @@ struct Task {
     // more lines of code than can fit in a single tutorial
     // page.
     future: Mutex<Pin<Box<dyn Future<Output = ()> + Send>>>,
-    executor: channel::Sender<Arc<Task>>,
+    executor: SyncSender<Arc<Task>>,
 }
 
 impl MiniTokio {
@@ -52,7 +53,7 @@ impl MiniTokio {
     }
 
     pub fn new() -> Self {
-        let (sender, todo) = channel::unbounded();
+        let (sender, todo) = mpsc::sync_channel(32);
         Self { todo, sender }
     }
 }
@@ -80,7 +81,7 @@ impl Task {
     // Initializes a new Task harness containing the given future and pushes it
     // onto `sender`. The receiver half of the channel will get the task and
     // execute it.
-    fn spawn<F>(future: F, sender: &channel::Sender<Arc<Task>>)
+    fn spawn<F>(future: F, sender: &SyncSender<Arc<Task>>)
     where
         F: Future<Output = ()> + Send + 'static,
     {
