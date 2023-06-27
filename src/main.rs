@@ -1,6 +1,7 @@
 mod tokio;
 
 use std::future::Future;
+use std::thread;
 use std::{
     pin::Pin,
     task::{Context, Poll},
@@ -10,7 +11,7 @@ use std::{
 use tokio::MiniTokio;
 
 fn main() {
-    let mut tokio = MiniTokio::default();
+    let mut tokio = MiniTokio::new();
 
     tokio.block_on(async {
         let when = Instant::now() + Duration::from_millis(10);
@@ -33,7 +34,21 @@ impl Future for Delay {
             println!("Hello world");
             Poll::Ready("done")
         } else {
-            cx.waker().wake_by_ref();
+            // Get a handle to the waker for the current task
+            let waker = cx.waker().clone();
+            let when = self.when;
+
+            // Spawn a timer thread.
+            thread::spawn(move || {
+                let now = Instant::now();
+
+                if now < when {
+                    thread::sleep(when - now);
+                }
+
+                waker.wake();
+            });
+
             Poll::Pending
         }
     }
